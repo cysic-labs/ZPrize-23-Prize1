@@ -88,13 +88,13 @@ fn main() {
                 Prover::<Fr, EdwardsParameters, KZG10<Bls12_381>>::new(
                     b"Merkle tree",
                 );
-        println!("The prove generation time is {:?}", now.elapsed());
             real_circuit.gadget(prover.mut_cs()).unwrap();
 
             real_circuit
                 .gen_proof::<KZG10<Bls12_381>>(&pp, pk, b"Merkle tree")
                 .unwrap()
         };
+        println!("The prove generation time is {:?}", now.elapsed());
 
         let verifier_data = VerifierData::new(vk, pi.clone());
         let res = verify_proof::<Fr, EdwardsParameters, KZG10<Bls12_381>>(
