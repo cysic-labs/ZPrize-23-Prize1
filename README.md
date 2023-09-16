@@ -48,7 +48,7 @@ Competitors will be given access to one of the following:
   - A dedicated instance of baseline image consisting of aSingle Socket AMD EPYC 7352 (ZEN2), a U250 FPGA card and 48 GB of host RAM.
 
 ## Prize Allocation
-The total prize award is $500k. All submissions that receive a prize must beat the score of the benchmark solution. The GPUs and FPGAs will be scored in a unified way, using performance related to the energy consumption. However, the prize will be divided into FPGA and GPU track, where the prize for each track is proportional to the number of eligible submissions. The first place takes 50% of the award, while the second and third place take 30% and 20% respectively. For instance, in a competition with X GPU teams and Y FPGA teams , if a team wins the first prize in GPU track, then the prize the team gets is P/2(X + Y) * 500k.
+The total prize award is $500k. All submissions that receive a prize must beat the score of the benchmark solution. The GPUs and FPGAs will be scored in a unified way, using performance related to the energy consumption. However, the prize will be divided into FPGA and GPU track, where the prize for each track is proportional to the number of eligible submissions. The first place takes 50% of the award, while the second and third place take 30% and 20% respectively. For instance, in a competition with X GPU teams and Y FPGA teams , if a team wins the first prize in GPU track, then the prize the team gets is X/2(X + Y) * 500k.
 
 Prizes will be awarded in good faith and at the sole discretion of the prize committee members.
 
