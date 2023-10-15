@@ -57,6 +57,11 @@ tempdir = "0.3"
 ark-vesta = "0.3"
 
 
+[patch.crates-io]
+ark-ff = { git = "https://github.com/cysic-labs/algebra", branch = "zprize2023" }
+ark-ec = { git = "https://github.com/cysic-labs/algebra", branch = "zprize2023" }
+ark-serialize = { git = "https://github.com/cysic-labs/algebra", branch = "zprize2023" }
+ark-bls12-381 = { git = "https://github.com/cysic-labs/curves", branch = "zprize2023" }
 
 [[bench]]
 name = "plonk"
