@@ -13,16 +13,13 @@ Compute the fixed-base point MSM for $2^{24}$ randomly sampled scalars from the 
 - Only a single GPU/FPGA may be used; the problem may not be parallelized across multiple hardware instances.
 - Submissions may be written in any language. The provided test harness, however, will be in Rust. So competitors submitting solutions using other languages will be required to create their own Rust bindings.
 
-The test harness repo: https://github.com/cysic-labs/ZPrize-23-Prize1, consists of the following code from ZPrize'22 MSM winners:
-- A starting GPU library for MSM by Yrrid.
-- A starting FPGA library for MSM by Hardcaml.
+The test harness repo: https://github.com/cysic-labs/ZPrize-23-Prize1, consists of test sample code.
 
 ### Timeline
 - October 15 - Competition begins.
 - December 1 - Mid-competition IPR.
-- February 1 - Deadline for submission.
-- End of February - Winners announced.
-- ETH Denver - Awarding ceremony.
+- March 15 - Deadline for submission.
+- End of March - Winners announced.
 
 ## Judging
 Submissions will be checked for correctness and ranked by performance. In addition, documentation (in English) must be provided along with the implementation. The documentation can be written in-line or as a separate document. It should be thorough and explanatory enough to provide an understanding of the techniques used in the submitted implementation without requiring an associated verbal explanation.
@@ -31,9 +28,9 @@ Submissions will be checked for correctness and ranked by performance. In additi
 The final correctness of the submission will be tested using randomly sampled test inputs/outputs that are not disclosed to the competitors during the competition. Submissions that fail any test cases will be judged as incorrect and lose the opportunity to win the prize.
 
 ### Performance
-Given input vectors consisting of $2^{24}$ fixed elliptic curve points (bases), participants will compute a scalar multiplication of those bases with a set of four vectors of scalar elements from the associated BLS12-377 (or BLS12-381) G1 field in succession. Competitors will be provided with a set of test vectors to use while building the solution (of course, competitors can, and are encouraged to, use other vectors during the design and build process). 
+Given input vectors consisting of $2^{24}$ fixed elliptic curve points (bases), participants will compute a scalar multiplication of those bases with a set of four vectors of scalar elements from the associated BLS12-377 (or BLS12-381) G1 field in succession. The measurement of two curves will be in a sequential order. Competitors will be provided with test sample generator to use while building the solution (of course, competitors can, and are encouraged to, use other vectors during the design and build process). 
 
-For scoring, solutions will be run using four randomly selected test vectors for both BLS12-377 and BLS12-381 curve as input across ten trials in total. The winning submission will be the one with the lowest average latency across all ten trials and the two curves. More specifically, let $\ell_i$ be the lowest latency of the i-th run of MSM on BLS12-377 and $m_i$ be the lowest latency of the i-th run of MSM on BLS12-377, then the score is calculated as $\frac{1}{10}\sum_{i = 1}^{10} (\ell_i + m_i)$. If the participant only submits only one solution, then this equation can be modified accordingly. Copy time for the bases to the device will not be counted (fixed base). Copy time will be counted for the 1st of the 4 sets of scalars will be counted, but not thereafter. 
+For scoring, solutions will be run using four randomly selected test vectors for BLS12-377 and then BLS12-381 curve as input across ten trials in total. The winning submission will be the one with the lowest average latency across all ten trials and the two curves. More specifically, let $\ell$ be the lowest latency of the 10 executions of MSM on BLS12-377 and $m$ be the counterpart on BLS12-377, then the score is calculated as $\frac{1}{2} (\ell + m)$. If the participant only submits only one solution, then a penalty factor (1.5) will be multiplied on the latency of the submitted curve. For instance, if a team submits solution only for BLS12-377 and the evaluated latency is $x$, then the score of this team is $1.5x$. Copy time for the bases to the device will not be counted (fixed base). The copy time starts when the set of random scalars are generated and finishes when the final results are transmitted to the host CPU.
 
 ## Hardware & Benchmarks
 Competitors will be given access to one of the following:
@@ -41,8 +38,8 @@ Competitors will be given access to one of the following:
 - A dedicated instance of baseline image consisting of 8 cores of AMD EPYC 7742 and a U250 FPGA card. 
 
 ## Prize Allocation
-The total reward of this prize is 500k Aleo credits. All submissions that receive a prize must beat the benchmark solution. The prize will be divided into FPGA and GPU tracks, where the prize for each track is proportional to the number of eligible submissions. The allocation principle is "winners take all". If a winner only submits the solutions for one curve, then there will be a 15% penalty on the prize. 
-For instance, in a competition with X GPU teams and Y FPGA teams , the winner of GPU track with only one submission for BLS12-377, then the prize the team gets is (X/(X + Y) * 500k) * 0.85, where the remaining 15% reward is allocated to the FPGA winner. 
+The total reward of this prize is 500k Aleo credits. The prize will be divided into FPGA and GPU tracks, where the prize for each track is proportional to the number of eligible submissions. The allocation principle is "winners take all". 
+For instance, in a competition with X GPU teams and Y FPGA teams , the prize that the winner of GPU track can get is (X/(X + Y) * 500k).
 
 Prizes will be awarded in good faith and at the sole discretion of the prize committee members.
 
