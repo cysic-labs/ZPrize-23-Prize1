@@ -12,10 +12,12 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use rand_chacha::ChaCha20Rng;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
-const LOG_SIZE: usize = 10;
+const LOG_SIZE: usize = 24;
 const BATCHES: usize = 4;
 
-fn gen_base_and_scalars<G: AffineCurve, R: RngCore>(rng: &mut R) -> Vec<(G, G::ScalarField)> {
+fn gen_base_and_scalars<G: AffineCurve, R: RngCore>(
+    rng: &mut R,
+) -> [Vec<(G, G::ScalarField)>; BATCHES] {
     let num_threads = rayon::max_num_threads();
     let per_thread = (1 << LOG_SIZE) / num_threads + 1;
     let mut rngs = (0..num_threads)
@@ -38,8 +40,25 @@ fn gen_base_and_scalars<G: AffineCurve, R: RngCore>(rng: &mut R) -> Vec<(G, G::S
         .flatten()
         .collect::<Vec<_>>();
 
-    let scalars = (0..1 << LOG_SIZE).map(|_| G::ScalarField::rand(rng));
-    bases.iter().cloned().zip(scalars).collect::<Vec<_>>()
+    let scalars1 = (0..1 << LOG_SIZE)
+        .map(|_| G::ScalarField::rand(rng))
+        .collect::<Vec<_>>();
+    let scalars2 = (0..1 << LOG_SIZE)
+        .map(|_| G::ScalarField::rand(rng))
+        .collect::<Vec<_>>();
+    let scalars3 = (0..1 << LOG_SIZE)
+        .map(|_| G::ScalarField::rand(rng))
+        .collect::<Vec<_>>();
+    let scalars4 = (0..1 << LOG_SIZE)
+        .map(|_| G::ScalarField::rand(rng))
+        .collect::<Vec<_>>();
+
+    [
+        bases.iter().cloned().zip(scalars1).collect::<Vec<_>>(),
+        bases.iter().cloned().zip(scalars2).collect::<Vec<_>>(),
+        bases.iter().cloned().zip(scalars3).collect::<Vec<_>>(),
+        bases.iter().cloned().zip(scalars4).collect::<Vec<_>>(),
+    ]
 }
 
 fn bench_curve<G: AffineCurve>(c: &mut Criterion)
@@ -47,11 +66,9 @@ where
     G::BaseField: PrimeField,
 {
     let mut rng = test_rng();
-    let bases_and_scalars_list = (0..BATCHES)
-        .map(|_| gen_base_and_scalars::<G, _>(&mut rng))
-        .collect::<Vec<_>>();
+    let bases_and_scalars_lists = gen_base_and_scalars::<G, _>(&mut rng);
 
-    let mut group = c.benchmark_group("Zprize 23, prize 1A");
+    let mut group = c.benchmark_group("Zprize 23, prize 1");
     group.sample_size(10);
     let name = format!(
         "bench {} batches of {} msm over {} curve",
@@ -61,12 +78,10 @@ where
     );
     group.bench_function(name, |b| {
         b.iter(|| {
-            let _ = black_box(
-                bases_and_scalars_list
-                    .iter()
-                    .map(|bases_and_scalars| dummy_msm::<G>(bases_and_scalars.as_ref()))
-                    .collect::<Vec<_>>(),
-            );
+            let _ = black_box(dummy_msm::<G>(bases_and_scalars_lists[0].as_ref()));
+            let _ = black_box(dummy_msm::<G>(bases_and_scalars_lists[1].as_ref()));
+            let _ = black_box(dummy_msm::<G>(bases_and_scalars_lists[2].as_ref()));
+            let _ = black_box(dummy_msm::<G>(bases_and_scalars_lists[3].as_ref()));
         })
     });
     group.finish();
