@@ -15,10 +15,8 @@ use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 const LOG_SIZE: usize = 24;
 const BATCHES: usize = 4;
 
-fn gen_base_and_scalars<G: AffineCurve, R: RngCore>(
-    rng: &mut R,
-) -> [Vec<(G, G::ScalarField)>; BATCHES] {
-    let num_threads = rayon::max_num_threads();
+fn gen_bases<G: AffineCurve, R: RngCore>(rng: &mut R) -> Vec<G> {
+    let num_threads = rayon::current_num_threads();
     let per_thread = (1 << LOG_SIZE) / num_threads + 1;
     let mut rngs = (0..num_threads)
         .map(|i| {
@@ -38,27 +36,11 @@ fn gen_base_and_scalars<G: AffineCurve, R: RngCore>(
             G::Projective::batch_normalization_into_affine(&proj_bases)
         })
         .flatten()
-        .collect::<Vec<_>>();
+        .take_any(1 << LOG_SIZE)
+        .collect::<Vec<_>>()
+        .to_vec();
 
-    let scalars1 = (0..1 << LOG_SIZE)
-        .map(|_| G::ScalarField::rand(rng))
-        .collect::<Vec<_>>();
-    let scalars2 = (0..1 << LOG_SIZE)
-        .map(|_| G::ScalarField::rand(rng))
-        .collect::<Vec<_>>();
-    let scalars3 = (0..1 << LOG_SIZE)
-        .map(|_| G::ScalarField::rand(rng))
-        .collect::<Vec<_>>();
-    let scalars4 = (0..1 << LOG_SIZE)
-        .map(|_| G::ScalarField::rand(rng))
-        .collect::<Vec<_>>();
-
-    [
-        bases.iter().cloned().zip(scalars1).collect::<Vec<_>>(),
-        bases.iter().cloned().zip(scalars2).collect::<Vec<_>>(),
-        bases.iter().cloned().zip(scalars3).collect::<Vec<_>>(),
-        bases.iter().cloned().zip(scalars4).collect::<Vec<_>>(),
-    ]
+    bases
 }
 
 fn bench_curve<G: AffineCurve>(c: &mut Criterion)
@@ -66,24 +48,80 @@ where
     G::BaseField: PrimeField,
 {
     let mut rng = test_rng();
-    let bases_and_scalars_lists = gen_base_and_scalars::<G, _>(&mut rng);
+    let bases = gen_bases::<G, _>(&mut rng);
+    let scalars1 = (0..1 << LOG_SIZE)
+        .map(|_| G::ScalarField::rand(&mut rng).into_repr())
+        .collect::<Vec<_>>();
+    let scalars2 = (0..1 << LOG_SIZE)
+        .map(|_| G::ScalarField::rand(&mut rng).into_repr())
+        .collect::<Vec<_>>();
+    let scalars3 = (0..1 << LOG_SIZE)
+        .map(|_| G::ScalarField::rand(&mut rng).into_repr())
+        .collect::<Vec<_>>();
+    let scalars4 = (0..1 << LOG_SIZE)
+        .map(|_| G::ScalarField::rand(&mut rng).into_repr())
+        .collect::<Vec<_>>();
 
     let mut group = c.benchmark_group("Zprize 23, prize 1");
     group.sample_size(10);
-    let name = format!(
-        "bench {} batches of {} msm over {} curve",
-        BATCHES,
-        1 << LOG_SIZE,
-        curve_name::<G>()
-    );
-    group.bench_function(name, |b| {
-        b.iter(|| {
-            let _ = black_box(dummy_msm::<G>(bases_and_scalars_lists[0].as_ref()));
-            let _ = black_box(dummy_msm::<G>(bases_and_scalars_lists[1].as_ref()));
-            let _ = black_box(dummy_msm::<G>(bases_and_scalars_lists[2].as_ref()));
-            let _ = black_box(dummy_msm::<G>(bases_and_scalars_lists[3].as_ref()));
-        })
-    });
+
+    // benchmark for zipped form inputs
+    {
+        let bases_and_scalars_1 = bases
+            .iter()
+            .cloned()
+            .zip(scalars1.iter().cloned())
+            .collect::<Vec<_>>();
+        let bases_and_scalars_2 = bases
+            .iter()
+            .cloned()
+            .zip(scalars2.iter().cloned())
+            .collect::<Vec<_>>();
+        let bases_and_scalars_3 = bases
+            .iter()
+            .cloned()
+            .zip(scalars3.iter().cloned())
+            .collect::<Vec<_>>();
+        let bases_and_scalars_4 = bases
+            .iter()
+            .cloned()
+            .zip(scalars4.iter().cloned())
+            .collect::<Vec<_>>();
+
+        let name = format!(
+            "bench {} batches of {} msm over {} curve; zipped form",
+            BATCHES,
+            1 << LOG_SIZE,
+            curve_name::<G>()
+        );
+        group.bench_function(name, |b| {
+            b.iter(|| {
+                let _ = black_box(dummy_msm_zipped::<G>(bases_and_scalars_1.as_ref()));
+                let _ = black_box(dummy_msm_zipped::<G>(bases_and_scalars_2.as_ref()));
+                let _ = black_box(dummy_msm_zipped::<G>(bases_and_scalars_3.as_ref()));
+                let _ = black_box(dummy_msm_zipped::<G>(bases_and_scalars_4.as_ref()));
+            })
+        });
+    }
+
+    // benchmark for splitted form inputs
+    {
+        let name = format!(
+            "bench {} batches of {} msm over {} curve; splitted form",
+            BATCHES,
+            1 << LOG_SIZE,
+            curve_name::<G>()
+        );
+        group.bench_function(name, |b| {
+            b.iter(|| {
+                let _ = black_box(dummy_msm_splitted::<G>(bases.as_ref(), scalars1.as_ref()));
+                let _ = black_box(dummy_msm_splitted::<G>(bases.as_ref(), scalars2.as_ref()));
+                let _ = black_box(dummy_msm_splitted::<G>(bases.as_ref(), scalars3.as_ref()));
+                let _ = black_box(dummy_msm_splitted::<G>(bases.as_ref(), scalars4.as_ref()));
+            })
+        });
+    }
+
     group.finish();
 }
 
@@ -104,9 +142,19 @@ where
 }
 
 // A dummy wrapper of Arkwork's MSM interface
-fn dummy_msm<G: AffineCurve>(bases_and_scalars: &[(G, G::ScalarField)]) -> G {
-    let (bases, scalars): (Vec<G>, Vec<G::ScalarField>) = bases_and_scalars.iter().cloned().unzip();
-    let scalars = scalars.iter().map(|s| s.into_repr()).collect::<Vec<_>>();
+fn dummy_msm_zipped<G: AffineCurve>(
+    bases_and_scalars: &[(G, <G::ScalarField as PrimeField>::BigInt)],
+) -> G {
+    let (bases, scalars): (Vec<G>, Vec<<G::ScalarField as PrimeField>::BigInt>) =
+        bases_and_scalars.iter().cloned().unzip();
+    VariableBaseMSM::multi_scalar_mul(&bases, &scalars).into_affine()
+}
+
+// A dummy wrapper of Arkwork's MSM interface
+fn dummy_msm_splitted<G: AffineCurve>(
+    bases: &[G],
+    scalars: &[<G::ScalarField as PrimeField>::BigInt],
+) -> G {
     VariableBaseMSM::multi_scalar_mul(&bases, &scalars).into_affine()
 }
 
