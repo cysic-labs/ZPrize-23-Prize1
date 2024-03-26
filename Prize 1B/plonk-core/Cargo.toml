@@ -56,7 +56,8 @@ blake2 = "0.9"
 ark-ec = { version = "0.3", default-features = false }
 ark-ff = { version = "0.3", default-features = false }
 ark-poly = { version = "0.3" }
-ark-poly-commit = { version = "0.3" }
+ark-poly-commit = {path = "../ark-poly-commit-0.3.0"}
+
 ark-serialize = { version = "0.3", features = ["derive"] }
 derivative = { version = "2.2.0", default-features = false, features = ["use_core"] }
 hashbrown = { version = "0.11.2", default-features = false, features = ["ahash"] }
@@ -65,6 +66,11 @@ itertools = { version = "0.10.1", default-features = false }
 merlin = { version = "3.0", default-features = false }
 num-traits = { version = "0.2.14" }
 rand_core = {version = "0.6", default-features=false, features = ["getrandom"] }
+
+crossbeam = "0.8"
+ref_thread_local = "0.1.1"
+lazy_static = "1.4.0"
+ec-gpu-common = { path = "../gpu/TrapdoorTech-zprize-ec-gpu-common" }
 
 [dev-dependencies]
 ark-bls12-377 = "0.3"

@@ -14,12 +14,14 @@ use crate::{
     lookup::PreprocessedLookupTable,
     proof_system::{widget, ProverKey},
 };
+use ark_bls12_381::G1Affine;
 use ark_ec::TEModelParameters;
 use ark_ff::{FftField, PrimeField};
 use ark_poly::{
     polynomial::univariate::DensePolynomial, EvaluationDomain, Evaluations,
     GeneralEvaluationDomain, UVPolynomial,
 };
+use ec_gpu_common::MSMContext;
 use core::marker::PhantomData;
 use merlin::Transcript;
 
@@ -408,6 +410,8 @@ where
             fourth_sigma_poly,
         ) = self.perm.compute_sigma_polynomials(self.n, &domain);
 
+        let msm_context:Option<MSMContext::<'static, 'static, G1Affine>> = None;
+
         let (commitments, _) = PC::commit(
             commit_key,
             [
@@ -433,6 +437,7 @@ where
             ]
             .iter(),
             None,
+            msm_context.as_ref(),
         )
         .map_err(to_pc_error::<F, PC>)?;
 

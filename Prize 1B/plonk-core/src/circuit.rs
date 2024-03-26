@@ -14,9 +14,10 @@ use crate::{
         pi::PublicInputs, Proof, Prover, ProverKey, Verifier, VerifierKey,
     },
 };
-use ark_ec::models::TEModelParameters;
+use ark_ec::{models::TEModelParameters, AffineCurve};
 use ark_ff::PrimeField;
 use ark_serialize::*;
+use ec_gpu_common::MSMContext;
 
 /// Collection of structs/objects that the Verifier will use in order to
 /// de/serialize data needed for Circuit proof verification.
@@ -258,20 +259,24 @@ where
         ))
     }
 
+
     /// Generates a proof using the provided [`ProverKey`] and
     /// [`ark_poly_commit::PCUniversalParams`]. Returns a
     /// [`crate::proof_system::Proof`] and the [`PublicInputs`].
-    fn gen_proof<PC>(
+    fn gen_proof<'a, 'b, PC, G>(
         &mut self,
         u_params: &PC::UniversalParams,
         prover_key: ProverKey<F>,
         transcript_init: &'static [u8],
+        msm_context : Option<&MSMContext<'a, 'b, G>>,
     ) -> Result<(Proof<F, PC>, PublicInputs<F>), Error>
     where
         F: PrimeField,
         P: TEModelParameters<BaseField = F>,
         PC: HomomorphicCommitment<F>,
+        G: AffineCurve,
     {
+
         let circuit_size = self.padded_circuit_size();
         let (ck, _) = PC::trim(u_params, circuit_size, 0, None)
             .map_err(to_pc_error::<F, PC>)?;
@@ -282,8 +287,7 @@ where
         // Add ProverKey to Prover
         prover.prover_key = Some(prover_key);
         let pi = prover.cs.get_pi().clone();
-
-        Ok((prover.prove(&ck)?, pi))
+        Ok((prover.prove(&ck, msm_context)?, pi))
     }
 
     /// Returns the Circuit size padded to the next power of two.
