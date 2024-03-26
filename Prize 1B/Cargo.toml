@@ -30,12 +30,19 @@ resolver = "2"
 members = [
     "plonk-core",
     "plonk-hashing",
-    "merkle-tree"
+    "merkle-tree",
+    "gpu/TrapdoorTech-zprize-ec-gpu-kernels",
 ]
 
 [dependencies]
 plonk-core = { path = "plonk-core" }
 plonk-hashing = { path = "plonk-hashing" }
+crossbeam = "0.8"
+ref_thread_local = "0.1.1"
+lazy_static = "1.4.0"
+
+ec-gpu-common = { path = "./gpu/TrapdoorTech-zprize-ec-gpu-common" }
+ark-poly-commit = {path = "ark-poly-commit-0.3.0"}
 
 [dev-dependencies]
 ark-ff = "0.3"
@@ -47,7 +54,7 @@ ark-ec = "0.3"
 ark-ed-on-bls12-377 = "0.3"
 ark-ed-on-bls12-381 = "0.3"
 ark-poly = "0.3"
-ark-poly-commit = "0.3"
+# ark-poly-commit = "0.3"
 blake2 = "0.9"
 criterion = "0.3"
 derivative = "2.2.0"

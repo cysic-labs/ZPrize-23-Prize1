@@ -8,7 +8,11 @@
 
 pub(crate) mod constants;
 
-use crate::constraint_system::{Variable, WireData};
+use crate::{
+    constraint_system::{Variable, WireData},
+    util::EvaluationDomainExt,
+};
+use ark_bls12_381::G1Affine;
 use ark_ff::FftField;
 use ark_poly::{
     domain::{EvaluationDomain, GeneralEvaluationDomain},
@@ -18,6 +22,117 @@ use ark_poly::{
 use constants::*;
 use hashbrown::HashMap;
 use itertools::izip;
+
+use ec_gpu_common::{
+    Fr as GpuFr, GPUSourceCore, GpuPolyContainer, MSMContext,
+    MsmPrecalcContainer, MultiexpKernel, PolyKernel, GPU_CUDA_CORES,
+};
+
+// use ref_thread_local::RefThreadLocal;
+
+lazy_static::lazy_static! {
+    pub static ref GPU_KERN_IDX: usize = {
+        std::env::var("GPU_IDX")
+            .and_then(|v| match v.parse() {
+                Ok(val) => Ok(val),
+                Err(_) => {
+                    println!("Invalid env GPU_IDX! Defaulting to 0...");
+                    Ok(0)
+                }
+            })
+            .unwrap_or(0)
+    };
+
+    /// todo
+    pub static ref GPU_BLS_KERN: GPUSourceCore = {
+        GPUSourceCore::create_cuda(*GPU_KERN_IDX).unwrap()
+    };
+
+    pub static ref PRECALC_CONTAINER:MsmPrecalcContainer = {
+        MsmPrecalcContainer::create_with_core(&GPU_CUDA_CORES[*GPU_KERN_IDX], true).unwrap()
+    };
+
+    pub static ref MSM_KERN : MultiexpKernel<'static, 'static, G1Affine> = {
+        MultiexpKernel::<G1Affine>::create(*GPU_KERN_IDX, &PRECALC_CONTAINER)
+            .unwrap()
+    };
+}
+
+ref_thread_local::ref_thread_local! {
+    /// thread
+    pub static managed GPU_POLY_KERNEL: PolyKernel<'static, GpuFr> = {
+        PolyKernel::<GpuFr>::create_with_core(&GPU_BLS_KERN).unwrap()
+    };
+
+    /// thread
+    pub static managed GPU_POLY_CONTAINER: GpuPolyContainer<GpuFr> = {
+        GpuPolyContainer::<GpuFr>::create().unwrap()
+    };
+
+    // let mut gpu_container = &mut GPU_POLY_CONTAINER.borrow_mut();
+    // pub static managed MSM_KERN :MultiexpKernel<'static, 'static, G1Affine> = {
+    //     let pre_container = PRECALC_CONTAINER.borrow();
+    //     MultiexpKernel::<G1Affine>::create(*GPU_KERN_IDX, &pre_container).unwrap()
+    // };
+
+        // pub static managed GPU_INITIALIZED: bool = false;
+}
+
+/// gpu_ifft
+pub fn gpu_ifft<F: FftField>(
+    kern: &PolyKernel<GpuFr>,
+    gpu_container: &mut GpuPolyContainer<GpuFr>,
+    scalar: &Vec<F>,
+    name: &str,
+    n: usize,
+    omega_inv: F,
+) -> DensePolynomial<F> {
+    let gpu_poly = gpu_container.find(&kern, name);
+    let mut gpu_poly = match gpu_poly {
+        Ok(poly) => poly,
+        Err(_) => gpu_container.ask_for(&kern, n).unwrap(),
+    };
+
+    gpu_poly.read_from(scalar).unwrap();
+    gpu_poly.ifft_full(&omega_inv).unwrap();
+
+    let mut gpu_iff_out = vec![F::zero(); n];
+
+    gpu_poly.write_to(&mut gpu_iff_out).unwrap();
+    let gpu_iff_out = DensePolynomial::from_coefficients_vec(gpu_iff_out);
+
+    gpu_container.save(name, gpu_poly).unwrap();
+
+    gpu_iff_out
+}
+
+/// gpu_ifft
+pub fn gpu_fft<F: FftField>(
+    kern: &PolyKernel<GpuFr>,
+    gpu_container: &mut GpuPolyContainer<GpuFr>,
+    scalar: &Vec<F>,
+    name: &str,
+    n: usize,
+    omega: F,
+) -> DensePolynomial<F> {
+    let gpu_poly = gpu_container.find(&kern, name);
+    let mut gpu_poly = match gpu_poly {
+        Ok(poly) => poly,
+        Err(_) => gpu_container.ask_for(&kern, n).unwrap(),
+    };
+
+    gpu_poly.read_from(scalar).unwrap();
+    gpu_poly.fft_full(&omega).unwrap();
+
+    let mut gpu_fft_out = vec![F::zero(); n];
+
+    gpu_poly.write_to(&mut gpu_fft_out).unwrap();
+    let gpu_fft_out = DensePolynomial::from_coefficients_vec(gpu_fft_out);
+
+    gpu_container.save(name, gpu_poly).unwrap();
+
+    gpu_fft_out
+}
 
 /// Permutation provides the necessary state information and functions
 /// to create the permutation polynomial. In the literature, Z(X) is the
@@ -661,19 +776,28 @@ impl Permutation {
             &DensePolynomial<F>,
             &DensePolynomial<F>,
         ),
+        kern: &PolyKernel<GpuFr>,
+        gpu_container: &mut GpuPolyContainer<GpuFr>,
     ) -> DensePolynomial<F> {
-        let n = domain.size();
-
+        let start = std::time::Instant::now();
         // Constants defining cosets H, k1H, k2H, etc
         let ks = vec![F::one(), K1::<F>(), K2::<F>(), K3::<F>()];
 
-        let sigma_mappings = (
-            domain.fft(sigma_polys.0),
-            domain.fft(sigma_polys.1),
-            domain.fft(sigma_polys.2),
-            domain.fft(sigma_polys.3),
-        );
+        let n = domain.size();
+        let omega = domain.group_gen();
+        let omega_inv = domain.group_gen_inv();
 
+        let v_0 =
+            gpu_fft(kern, gpu_container, &sigma_polys.0.to_vec(), "table_poly", n, omega).to_vec();
+        let v_1 =
+            gpu_fft(kern, gpu_container, &sigma_polys.1.to_vec(), "table_poly", n, omega).to_vec();
+        let v_2 =
+            gpu_fft(kern, gpu_container, &sigma_polys.2.to_vec(), "table_poly", n, omega).to_vec();
+        let v_3 =
+            gpu_fft(kern, gpu_container, &sigma_polys.3.to_vec(), "table_poly", n, omega).to_vec();
+        let sigma_mappings = (v_0, v_1, v_2, v_3);
+
+   
         // Transpose wires and sigma values to get "rows" in the form [wl_i,
         // wr_i, wo_i, ... ] where each row contains the wire and sigma
         // values for a single gate
@@ -748,7 +872,10 @@ impl Permutation {
 
         assert_eq!(n, z.len());
 
-        DensePolynomial::<F>::from_coefficients_vec(domain.ifft(&z))
+        // DensePolynomial::<F>::from_coefficients_vec(domain.ifft(&z))
+        let r = gpu_ifft(kern, gpu_container, &z, "table_poly", n, omega_inv);
+
+        DensePolynomial::<F>::from_coefficients_vec(r.to_vec())
     }
 
     pub(crate) fn compute_lookup_permutation_poly<F: FftField>(

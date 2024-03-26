@@ -31,14 +31,14 @@
 // It can be refactored but for now, we avoid these warns.
 #![allow(clippy::too_many_arguments)]
 #![deny(rustdoc::broken_intra_doc_links)]
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 
 extern crate alloc;
 
-mod permutation;
 mod transcript;
 mod util;
 
+pub mod permutation;
 pub mod circuit;
 pub mod commitment;
 pub mod constraint_system;
