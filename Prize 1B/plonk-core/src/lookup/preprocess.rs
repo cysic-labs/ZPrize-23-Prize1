@@ -7,9 +7,11 @@
 use crate::commitment::HomomorphicCommitment;
 use crate::error::{to_pc_error, Error};
 use crate::lookup::{LookupTable, MultiSet};
+use ark_bls12_381::G1Affine;
 use ark_ff::PrimeField;
 use ark_poly::domain::EvaluationDomain;
 use ark_poly::polynomial::univariate::DensePolynomial;
+use ec_gpu_common::MSMContext;
 
 /// This table will be the preprocessed version of the precomputed table,
 /// T, with arity 4. This structure is passed to the proof alongside the
@@ -60,7 +62,9 @@ where
                     None,
                     None,
                 );
-                let commitment = PC::commit(commit_key, &[labeled_poly], None)
+
+                let msm_context:Option<&MSMContext::<'static, 'static, G1Affine>> = None;
+                let commitment = PC::commit(commit_key, &[labeled_poly], None, msm_context)
                     .map_err(to_pc_error::<F, PC>)?;
                 Ok((column, commitment.0[0].commitment().clone(), poly))
             })
@@ -107,6 +111,9 @@ mod test {
             table.insert_xor_row(19u64, 6u64, 64u64);
             table.insert_xor_row(4u64, 2u64, 64u64);
         });
+
+
+        let coeffs_count = 1<<17;
 
         let preprocessed_table =
             PreprocessedLookupTable::<F, PC>::preprocess(&table, &ck, 32)

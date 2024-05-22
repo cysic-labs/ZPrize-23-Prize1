@@ -1,4 +1,4 @@
-use ark_bls12_381::{Bls12_381, Fr};
+use ark_bls12_381::{Bls12_381, Fr, G1Affine};
 use ark_ed_on_bls12_381::EdwardsParameters;
 use ark_poly_commit::PolynomialCommitment;
 use ark_std::rand::RngCore;
@@ -10,6 +10,7 @@ use plonk_core::prelude::{
     verify_proof, Circuit, StandardComposer, VerifierData,
 };
 use plonk_core::proof_system::Prover;
+use plonk_core::permutation::MSM_KERN;
 use plonk_hashing::poseidon::constants::PoseidonConstants;
 use plonk_hashing::poseidon::poseidon_ref::NativeSpecRef;
 
@@ -32,7 +33,7 @@ fn main() {
 
     let index = rng.next_u32() % (1 << (HEIGHT - 1));
     let proof = tree.gen_proof(index as usize);
-    let res = proof.verify(&param, &tree.root());
+    let _res = proof.verify(&param, &tree.root());
 
     // omitted: parameters too large
     // println!("generating merkle tree with parameter {:?}", param);
@@ -82,7 +83,21 @@ fn main() {
             param: param.clone(),
             merkle_tree: tree,
         };
+
+        let coeffs_count = 1 << (HEIGHT+7);
+        let (ck, _) = <KZG10<Bls12_381>>::trim(
+            &pp,
+            real_circuit.padded_circuit_size(),
+            0,
+            None,
+        )
+        .unwrap();
+
+        let gpu_context =
+            <KZG10<Bls12_381>>::get_gpu_context(&MSM_KERN, &ck, coeffs_count);
+
         let now = std::time::Instant::now();
+        println!("start gen proof");
         let (proof, pi) = {
             let mut prover =
                 Prover::<Fr, EdwardsParameters, KZG10<Bls12_381>>::new(
@@ -91,7 +106,12 @@ fn main() {
             real_circuit.gadget(prover.mut_cs()).unwrap();
 
             real_circuit
-                .gen_proof::<KZG10<Bls12_381>>(&pp, pk, b"Merkle tree")
+                .gen_proof::<KZG10<Bls12_381>, G1Affine>(
+                    &pp,
+                    pk,
+                    b"Merkle tree",
+                    Some(&gpu_context),
+                )
                 .unwrap()
         };
         println!("The prove generation time is {:?}", now.elapsed());

@@ -27,7 +27,7 @@ ark-ec = { version = "0.3", features = ["std"] }
 ark-ff = { version = "0.3", features = ["std"] }
 ark-serialize = { version = "0.3", features = ["derive"] }
 ark-poly = "0.3"
-ark-poly-commit = "0.3"
+ark-poly-commit = {path = "../ark-poly-commit-0.3.0"}
 ark-crypto-primitives = { version = "^0.3.0", features = ["r1cs"], default-features = false }
 ark-std = { version = "^0.3.0", default-features = false }
 itertools = { version = "0.10.1", default-features = false }
@@ -39,6 +39,8 @@ ark-r1cs-std = "0.3.1"
 thiserror = "1.0.30"
 ark-bls12-381 = { version = "0.3", features = ["curve"] }
 ark-ed-on-bls12-381 = { version = "0.3" }
+ec-gpu-common = { path = "../gpu/TrapdoorTech-zprize-ec-gpu-common" }
+
 
 [dev-dependencies]
 neptune = { version = "7.2.0" }
