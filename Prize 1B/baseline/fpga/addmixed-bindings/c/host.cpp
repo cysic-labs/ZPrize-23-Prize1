@@ -147,7 +147,7 @@ uint64_t addmixed_fpga (
 
     //These commands will load the source_in1 and source_in2 vectors from the host
     //application into the buffer_in1 and buffer_in2 cl::Buffer objects. The data
-    //will be be transferred from system memory over PCIe to the FPGA on-board
+    //will be transferred from system memory over PCIe to the FPGA on-board
     //DDR memory.
     OCL_CHECK(err,
               err = q.enqueueMigrateMemObjects({buffer_arg},
