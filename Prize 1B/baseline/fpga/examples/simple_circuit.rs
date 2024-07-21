@@ -81,7 +81,7 @@ fn main() -> Result<(), Error> {
             let generator = GroupAffine::new(x, y);
             let scalar_mul_result =
                 composer.fixed_base_scalar_mul(e, generator);
-            // Apply the constrain
+            // Apply the constraint
             composer.assert_equal_public_point(scalar_mul_result, self.f);
             Ok(())
         }
