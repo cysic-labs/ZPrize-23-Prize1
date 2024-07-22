@@ -25,8 +25,8 @@ The [test harness repo](https://github.com/cysic-labs/ZPrize-23-Prize1/tree/main
 ## Timeline
   - April 15 – Competition begins.
   - May 30 – Mid-competition IPR.
-  - July 30 – Deadline for submission.
-  - End of July  – Winner(s) announced.
+  - September 30 – Deadline for submission.
+  - Beginning of October  – Winner(s) announced.
 
 ## Judging
 Submissions will be checked for correctness and ranked by performance. In addition, documentation (in English) must be provided along with the implementation. The documentation can be written in-line or as a separate document. It should be thorough and explanatory enough to provide an understanding of the techniques used in the submitted implementation without requiring an associated verbal explanation.
@@ -39,13 +39,13 @@ Given an input vector consisting of X field elements, participants will compute 
 
 The committee understands that accelerating every part of the proof generation process for the above circuit is challenging in the competition period. Therefore, please use your time wisely in the engineering process. It is acceptable that your work is built upon the results of ZPrize 2022.
 
-## Hardware and Benchmarks
+## Hardware and Benchmarks 
 Competitors will be given access to one of the following:
-  - A dedicated instance of baseline image consisting of 8 cores of AMD EPYC 7742, an RTX 5000 Ada GPU and 128 GB memory.
+  - A dedicated instance of baseline image consisting of 8 cores of AMD EPYC 75F3, an RTX 6000 Ada GPU and 128 GB memory.
   - A dedicated instance of baseline image consisting of 8 cores of AMD EPYC 7742, an U250 FPGA card and 128 GB memory.
 
 ## Prize Allocation
-The total prize award is $500k. The GPUs and FPGAs will be scored in a unified way, using performance related to the energy consumption. More specicially, the score is calulcated based as the joules needed to generated 10 such proofs. The prize will be divided into FPGA and GPU track, where the prize for each track is proportional to the number of eligible submissions. The first place takes 65% of the award, while the second and third place take 25% and 10% respectively. For instance, in a competition with X GPU teams and Y FPGA teams, if a team wins the first prize in GPU track, then the prize the team gets is X/(X + Y) * 500k * 65%.
+The total prize award is $400k + 250k Aleo credits. The GPUs and FPGAs will be scored in a unified way, using performance related to the energy consumption. More specicially, the score is calulcated based as the joules needed to generated 10 such proofs. The prize will be divided into FPGA and GPU track, where the prize for each track is proportional to the number of eligible submissions. The first place takes 65% of the award, while the second and third place take 25% and 10% respectively. For instance, in a competition with X GPU teams and Y FPGA teams, if a team wins the first prize in GPU track, then the prize the team gets is X/(X + Y) * 500k * 65%.
 
 Prizes will be awarded in good faith and at the sole discretion of the prize committee members.
 
