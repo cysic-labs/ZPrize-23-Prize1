@@ -31,7 +31,7 @@ There is currently no other library that allows for the freedom of generic param
 
 This implementation is an optimization of the original PLONK protocol and adds the support of lookup table to PLONK circuit. This optimization allows for precomputation of some of the operations that are not snark friendly such as bit operations (see [PLOOKUP](https://eprint.iacr.org/2020/315.pdf) for further explanation on PLONK + LOOKUP tables).
 
-Our implementation also supports custom gates similarly to [TurboPlonk](https://docs.zkproof.org/pages/standards/accepted-workshop3/proposal-turbo_plonk.pdf). This allow us to define our own custom bit arithmetic operations, e.g., to support efficient Poseidon or MIMC hashes that can be efficiently evaluate inside the SNARK circuit. 
+Our implementation also supports custom gates similarly to [TurboPlonk](https://docs.zkproof.org/pages/standards/accepted-workshop3/proposal-turbo_plonk.pdf). This allow us to define our own custom bit arithmetic operations, e.g., to support efficient Poseidon or MIMC hashes that can be efficiently evaluated inside the SNARK circuit. 
 
 ### Custom gates
 
