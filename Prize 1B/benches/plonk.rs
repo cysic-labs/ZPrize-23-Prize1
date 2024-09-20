@@ -107,9 +107,11 @@ where
             &degree,
             |b, _| {
                 b.iter(|| {
-                    circuit
-                        .compile::<HC>(&pp)
-                        .expect("Unable to compile circuit.")
+                    (0..4).for_each(|_| {
+                        circuit
+                            .compile::<HC>(&pp)
+                            .expect("Unable to compile circuit.");
+                    })
                 })
             },
         );
@@ -127,33 +129,53 @@ where
             &degree,
             |b, _| {
                 b.iter(|| {
-                    circuit.gen_proof::<HC>(&pp, pk_p.clone(), &label).unwrap()
+                    (0..4).for_each(|_| {
+                        circuit
+                            .gen_proof::<HC>(&pp, pk_p.clone(), &label)
+                            .unwrap();
+                    })
                 })
             },
         );
     }
     proving_benchmarks.finish();
 
+    let mut proofs = vec![];
+    for degree in MINIMUM_DEGREE..MAXIMUM_DEGREE {
+        let mut circuit = BenchCircuit::<F, P>::new(degree);
+        let (pk_p, _) = circuit
+            .compile::<HC>(&pp)
+            .expect("Unable to compile circuit.");
+        let proof_i = (0..4)
+            .map(|_| {
+                circuit.gen_proof::<HC>(&pp, pk_p.clone(), &label).unwrap()
+            })
+            .collect::<Vec<_>>();
+        proofs.push(proof_i);
+    }
+
     let mut verifying_benchmarks = c.benchmark_group("verify");
     for degree in MINIMUM_DEGREE..MAXIMUM_DEGREE {
         let mut circuit = BenchCircuit::<F, P>::new(degree);
-        let (pk_p, (vk, _pi_pos)) =
+        let (_pk_p, (vk, _pi_pos)) =
             circuit.compile(&pp).expect("Unable to compile circuit.");
-        let (proof, pi) =
-            circuit.gen_proof::<HC>(&pp, pk_p.clone(), &label).unwrap();
         verifying_benchmarks.bench_with_input(
             BenchmarkId::from_parameter(degree),
             &degree,
             |b, _| {
                 b.iter(|| {
-                    plonk::circuit::verify_proof::<F, P, HC>(
-                        &pp,
-                        vk.clone(),
-                        &proof,
-                        &pi,
-                        &label,
+                    proofs[degree - MINIMUM_DEGREE].iter().for_each(
+                        |(proof, pi)| {
+                            plonk::circuit::verify_proof::<F, P, HC>(
+                                &pp,
+                                vk.clone(),
+                                &proof,
+                                &pi,
+                                &label,
+                            )
+                            .expect("Unable to verify benchmark circuit.");
+                        },
                     )
-                    .expect("Unable to verify benchmark circuit.");
                 })
             },
         );

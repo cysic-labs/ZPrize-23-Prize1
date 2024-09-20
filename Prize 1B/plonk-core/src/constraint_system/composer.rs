@@ -153,11 +153,7 @@ where
 
     /// Insert data in the PI starting at the given position and stores the
     /// occupied positions as intended for public inputs.
-    pub fn add_pi<T>(
-        &mut self,
-        pos: usize,
-        item: &T,
-    ) -> Result<(), Error>
+    pub fn add_pi<T>(&mut self, pos: usize, item: &T) -> Result<(), Error>
     where
         T: ToConstraintField<F>,
     {
