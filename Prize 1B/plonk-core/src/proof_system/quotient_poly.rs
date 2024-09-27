@@ -61,6 +61,7 @@ where
     F: PrimeField,
     P: TEModelParameters<BaseField = F>,
 {
+    let start = std::time::Instant::now();
     let domain_8n = GeneralEvaluationDomain::<F>::new(8 * domain.size())
         .ok_or(Error::InvalidEvalDomainSize {
         log_size_of_group: (8 * domain.size()).trailing_zeros(),
@@ -70,7 +71,6 @@ where
 
     let l1_poly = compute_first_lagrange_poly_scaled(domain, F::one());
     let l1_eval_8n = domain_8n.coset_fft(&l1_poly);
-
     let mut z_eval_8n = domain_8n.coset_fft(z_poly);
     z_eval_8n.push(z_eval_8n[0]);
     z_eval_8n.push(z_eval_8n[1]);
@@ -199,6 +199,7 @@ where
             numerator * denominator.inverse().unwrap()
         })
         .collect::<Vec<_>>();
+
 
     Ok(DensePolynomial::from_coefficients_vec(
         domain_8n.coset_ifft(&quotient),

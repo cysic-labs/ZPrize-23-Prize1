@@ -17,7 +17,8 @@ use crate::{
     },
     transcript::TranscriptProtocol,
 };
-use ark_ec::{ModelParameters, TEModelParameters};
+use crate::permutation::gpu_ifft;
+use ark_ec::{AffineCurve, ModelParameters, TEModelParameters};
 use ark_ff::PrimeField;
 use ark_poly::{
     univariate::DensePolynomial, EvaluationDomain, GeneralEvaluationDomain,
@@ -26,6 +27,66 @@ use ark_poly::{
 use core::marker::PhantomData;
 use itertools::izip;
 use merlin::Transcript;
+
+use crate::util::EvaluationDomainExt;
+use std::time::Instant;
+
+use ec_gpu_common::{
+    Fr as GpuFr, GPUSourceCore, GpuPolyContainer, MSMContext,
+    MsmPrecalcContainer, MultiexpKernel, PolyKernel, GPU_CUDA_CORES,
+};
+use crate::permutation::GPU_POLY_KERNEL;
+use crate::permutation::GPU_POLY_CONTAINER;
+use ref_thread_local::RefThreadLocal;
+use std::borrow::Borrow;
+
+// lazy_static::lazy_static! {
+//     pub static ref GPU_KERN_IDX: usize = {
+//         std::env::var("GPU_IDX")
+//             .and_then(|v| match v.parse() {
+//                 Ok(val) => Ok(val),
+//                 Err(_) => {
+//                     println!("Invalid env GPU_IDX! Defaulting to 0...");
+//                     Ok(0)
+//                 }
+//             })
+//             .unwrap_or(0)
+//     };
+
+//     /// todo
+//     pub static ref GPU_BLS_KERN: GPUSourceCore = {
+//         GPUSourceCore::create_cuda(*GPU_KERN_IDX).unwrap()
+//     };
+
+//     pub static ref PRECALC_CONTAINER:MsmPrecalcContainer = {
+//         MsmPrecalcContainer::create_with_core(&GPU_CUDA_CORES[*GPU_KERN_IDX], true).unwrap()
+//     };
+
+//     pub static ref MSM_KERN : MultiexpKernel<'static, 'static, G1Affine> = {
+//         MultiexpKernel::<G1Affine>::create(*GPU_KERN_IDX, &PRECALC_CONTAINER)
+//             .unwrap()
+//     };
+// }
+
+// ref_thread_local::ref_thread_local! {
+//     /// thread
+//     pub static managed GPU_POLY_KERNEL: PolyKernel<'static, GpuFr> = {
+//         PolyKernel::<GpuFr>::create_with_core(&GPU_BLS_KERN).unwrap()
+//     };
+
+//     /// thread
+//     pub static managed GPU_POLY_CONTAINER: GpuPolyContainer<GpuFr> = {
+//         GpuPolyContainer::<GpuFr>::create().unwrap()
+//     };
+
+//     // let mut gpu_container = &mut GPU_POLY_CONTAINER.borrow_mut();
+//     // pub static managed MSM_KERN :MultiexpKernel<'static, 'static, G1Affine> = {
+//     //     let pre_container = PRECALC_CONTAINER.borrow();
+//     //     MultiexpKernel::<G1Affine>::create(*GPU_KERN_IDX, &pre_container).unwrap()
+//     // };
+
+//         // pub static managed GPU_INITIALIZED: bool = false;
+// }
 
 /// Abstraction structure designed to construct a circuit and generate
 /// [`Proof`]s for it.
@@ -156,18 +217,56 @@ where
         self.preprocessed_transcript.append_message(label, message);
     }
 
+    /// gpu_ifft
+    // pub fn gpu_ifft(
+    //     &self,
+    //     kern: &PolyKernel<GpuFr>,
+    //     gpu_container: &mut GpuPolyContainer<GpuFr>,
+    //     scalar: &Vec<F>,
+    //     name: &str,
+    //     n: usize,
+    //     omega_inv: F,
+    // ) -> DensePolynomial<F> {
+    //     let gpu_poly = gpu_container.find(&kern, name);
+    //     let mut gpu_poly = match gpu_poly {
+    //         Ok(poly) => poly,
+    //         Err(_) => gpu_container.ask_for(&kern, n).unwrap(),
+    //     };
+
+    //     gpu_poly.read_from(scalar).unwrap();
+    //     gpu_poly.ifft_full(&omega_inv).unwrap();
+
+    //     let mut gpu_iff_out = vec![F::zero(); n];
+
+    //     gpu_poly.write_to(&mut gpu_iff_out).unwrap();
+    //     let gpu_iff_out = DensePolynomial::from_coefficients_vec(gpu_iff_out);
+
+    //     gpu_container.save(name, gpu_poly).unwrap();
+
+    //     gpu_iff_out
+    // }
+
     /// Creates a [`Proof]` that demonstrates that a circuit is satisfied.
     /// # Note
     /// If you intend to construct multiple [`Proof`]s with different witnesses,
     /// after calling this method, the user should then call
     /// [`Prover::clear_witness`].
     /// This is automatically done when [`Prover::prove`] is called.
-    pub fn prove_with_preprocessed(
+    pub fn prove_with_preprocessed<'a, 'b, G>(
         &self,
         commit_key: &PC::CommitterKey,
         prover_key: &ProverKey<F>,
+        msm_context: Option<&MSMContext<'a, 'b, G>>,
         _data: PhantomData<PC>,
-    ) -> Result<Proof<F, PC>, Error> {
+    ) -> Result<Proof<F, PC>, Error>
+    where
+        G: AffineCurve,
+    {
+        let kern = &RefThreadLocal::borrow(&GPU_POLY_KERNEL);
+        let gpu_container = &mut GPU_POLY_CONTAINER.borrow_mut();
+        let msm_context = msm_context.unwrap();
+
+        let start = std::time::Instant::now();
         let domain =
             GeneralEvaluationDomain::new(self.cs.circuit_bound()).ok_or(Error::InvalidEvalDomainSize {
                 log_size_of_group: self.cs.circuit_bound().trailing_zeros(),
@@ -195,14 +294,42 @@ where
 
         // Witnesses are now in evaluation form, convert them to coefficients
         // so that we may commit to them.
-        let w_l_poly =
-            DensePolynomial::from_coefficients_vec(domain.ifft(w_l_scalar));
-        let w_r_poly =
-            DensePolynomial::from_coefficients_vec(domain.ifft(w_r_scalar));
-        let w_o_poly =
-            DensePolynomial::from_coefficients_vec(domain.ifft(w_o_scalar));
-        let w_4_poly =
-            DensePolynomial::from_coefficients_vec(domain.ifft(w_4_scalar));
+
+        let omega_inv = domain.group_gen_inv();
+        let start = Instant::now();
+
+        let w_l_poly = gpu_ifft(
+            kern,
+            gpu_container,
+            w_l_scalar,
+            "w_l_poly",
+            n,
+            omega_inv,
+        );
+        let w_r_poly = gpu_ifft(
+            kern,
+            gpu_container,
+            w_r_scalar,
+            "w_r_poly",
+            n,
+            omega_inv,
+        );
+        let w_o_poly = gpu_ifft(
+            kern,
+            gpu_container,
+            w_o_scalar,
+            "w_o_poly",
+            n,
+            omega_inv,
+        );
+        let w_4_poly = gpu_ifft(
+            kern,
+            gpu_container,
+            w_4_scalar,
+            "w_4_poly",
+            n,
+            omega_inv,
+        );
 
         let w_polys = [
             label_polynomial!(w_l_poly),
@@ -212,8 +339,10 @@ where
         ];
 
         // Commit to witness polynomials.
-        let (w_commits, w_rands) = PC::commit(commit_key, w_polys.iter(), None)
-            .map_err(to_pc_error::<F, PC>)?;
+        let (w_commits, w_rands) =
+            PC::commit(commit_key, w_polys.iter(), None, Some(&msm_context))
+                .map_err(to_pc_error::<F, PC>)?;
+
 
         // Add witness polynomial commitments to transcript.
         transcript.append(b"w_l", w_commits[0].commitment());
@@ -239,8 +368,16 @@ where
         );
 
         // Compute table poly
-        let table_poly = DensePolynomial::from_coefficients_vec(
-            domain.ifft(&compressed_t_multiset.0),
+        // let table_poly = DensePolynomial::from_coefficients_vec(
+        //     domain.ifft(&compressed_t_multiset.0),
+        // );
+        let table_poly = gpu_ifft(
+            kern,
+            gpu_container,
+            &compressed_t_multiset.0,
+            "table_poly",
+            n,
+            omega_inv,
         );
 
         // Compute query table f
@@ -280,17 +417,30 @@ where
         let compressed_f_multiset = MultiSet::compress(&f_scalars, zeta);
 
         // Compute query poly
-        let f_poly = DensePolynomial::from_coefficients_vec(
-            domain.ifft(&compressed_f_multiset.0),
+        // let f_poly = DensePolynomial::from_coefficients_vec(
+        //     domain.ifft(&compressed_f_multiset.0),
+        // );
+        let f_poly = gpu_ifft(
+            kern,
+            gpu_container,
+            &compressed_f_multiset.0,
+            "f_poly",
+            n,
+            omega_inv,
         );
+
 
         // Add blinders to query polynomials
         // let f_poly = Self::add_blinder(&f_poly, n, 1);
 
         // Commit to query polynomial
-        let (f_poly_commit, _) =
-            PC::commit(commit_key, &[label_polynomial!(f_poly)], None)
-                .map_err(to_pc_error::<F, PC>)?;
+        let (f_poly_commit, _) = PC::commit(
+            commit_key,
+            &[label_polynomial!(f_poly)],
+            None,
+            Some(&msm_context),
+        )
+        .map_err(to_pc_error::<F, PC>)?;
 
         // Add f_poly commitment to transcript
         transcript.append(b"f", f_poly_commit[0].commitment());
@@ -301,22 +451,47 @@ where
             .unwrap();
 
         // Compute h polys
-        let h_1_poly =
-            DensePolynomial::from_coefficients_vec(domain.ifft(&h_1.0));
-        let h_2_poly =
-            DensePolynomial::from_coefficients_vec(domain.ifft(&h_2.0));
+        // let h_1_poly =
+        //     DensePolynomial::from_coefficients_vec(domain.ifft(&h_1.0));
+        // let h_2_poly =
+        //     DensePolynomial::from_coefficients_vec(domain.ifft(&h_2.0));
+
+        let h_1_poly = gpu_ifft(
+            kern,
+            gpu_container,
+            &h_1.0,
+            "h_1_poly",
+            n,
+            omega_inv,
+        );
+        let h_2_poly = gpu_ifft(
+            kern,
+            gpu_container,
+            &h_2.0,
+            "h_2_poly",
+            n,
+            omega_inv,
+        );
 
         // Add blinders to h polynomials
         // let h_1_poly = Self::add_blinder(&h_1_poly, n, 1);
         // let h_2_poly = Self::add_blinder(&h_2_poly, n, 1);
 
         // Commit to h polys
-        let (h_1_poly_commit, _) =
-            PC::commit(commit_key, &[label_polynomial!(h_1_poly)], None)
-                .map_err(to_pc_error::<F, PC>)?;
-        let (h_2_poly_commit, _) =
-            PC::commit(commit_key, &[label_polynomial!(h_2_poly)], None)
-                .map_err(to_pc_error::<F, PC>)?;
+        let (h_1_poly_commit, _) = PC::commit(
+            commit_key,
+            &[label_polynomial!(h_1_poly)],
+            None,
+            Some(&msm_context),
+        )
+        .map_err(to_pc_error::<F, PC>)?;
+        let (h_2_poly_commit, _) = PC::commit(
+            commit_key,
+            &[label_polynomial!(h_2_poly)],
+            None,
+            Some(&msm_context),
+        )
+        .map_err(to_pc_error::<F, PC>)?;
 
         // Add h polynomials to transcript
         transcript.append(b"h1", h_1_poly_commit[0].commitment());
@@ -357,12 +532,18 @@ where
                 &prover_key.permutation.out_sigma.0,
                 &prover_key.permutation.fourth_sigma.0,
             ),
+            kern,
+            gpu_container,
         );
 
         // Commit to permutation polynomial.
-        let (z_poly_commit, _) =
-            PC::commit(commit_key, &[label_polynomial!(z_poly)], None)
-                .map_err(to_pc_error::<F, PC>)?;
+        let (z_poly_commit, _) = PC::commit(
+            commit_key,
+            &[label_polynomial!(z_poly)],
+            None,
+            Some(&msm_context),
+        )
+        .map_err(to_pc_error::<F, PC>)?;
 
         // Add permutation polynomial commitment to transcript.
         transcript.append(b"z", z_poly_commit[0].commitment());
@@ -386,9 +567,13 @@ where
         // z_2_poly = Self::add_blinder(&z_2_poly, n, 2);
 
         // Commit to lookup permutation polynomial.
-        let (z_2_poly_commit, _) =
-            PC::commit(commit_key, &[label_polynomial!(z_2_poly)], None)
-                .map_err(to_pc_error::<F, PC>)?;
+        let (z_2_poly_commit, _) = PC::commit(
+            commit_key,
+            &[label_polynomial!(z_2_poly)],
+            None,
+            Some(&msm_context),
+        )
+        .map_err(to_pc_error::<F, PC>)?;
 
         // 3. Compute public inputs polynomial.
         let pi_poly = self.cs.get_pi().into_dense_poly(n);
@@ -469,6 +654,7 @@ where
                 label_polynomial!(t_i_polys[7]),
             ],
             None,
+            Some(&msm_context),
         )
         .map_err(to_pc_error::<F, PC>)?;
 
@@ -565,6 +751,7 @@ where
                 transcript.append(static_label.as_bytes(), eval);
             });
 
+
         // 5. Compute Openings using KZG10
         //
         // We merge the quotient polynomial using the `z_challenge` so the SRS
@@ -588,8 +775,9 @@ where
             label_polynomial!(table_poly),
         ];
 
-        let (aw_commits, aw_rands) = PC::commit(commit_key, &aw_polys, None)
-            .map_err(to_pc_error::<F, PC>)?;
+        let (aw_commits, aw_rands) =
+            PC::commit(commit_key, &aw_polys, None, Some(&msm_context))
+                .map_err(to_pc_error::<F, PC>)?;
 
         let aw_opening = PC::open(
             commit_key,
@@ -615,8 +803,9 @@ where
             label_polynomial!(table_poly),
         ];
 
-        let (saw_commits, saw_rands) = PC::commit(commit_key, &saw_polys, None)
-            .map_err(to_pc_error::<F, PC>)?;
+        let (saw_commits, saw_rands) =
+            PC::commit(commit_key, &saw_polys, None, Some(&msm_context))
+                .map_err(to_pc_error::<F, PC>)?;
 
         let saw_opening = PC::open(
             commit_key,
@@ -656,10 +845,15 @@ where
     /// Proves a circuit is satisfied, then clears the witness variables
     /// If the circuit is not pre-processed, then the preprocessed circuit will
     /// also be computed.
-    pub fn prove(
+    pub fn prove<'a, 'b, G>(
         &mut self,
         commit_key: &PC::CommitterKey,
-    ) -> Result<Proof<F, PC>, Error> {
+        msm_context: Option<&MSMContext<'a, 'b, G>>,
+    ) -> Result<Proof<F, PC>, Error>
+    where
+        G: AffineCurve,
+    {
+    
         if self.prover_key.is_none() {
             // Preprocess circuit and store preprocessed circuit and transcript
             // in the Prover.
@@ -674,6 +868,7 @@ where
         let proof = self.prove_with_preprocessed(
             commit_key,
             prover_key,
+            msm_context,
             PhantomData::<PC>,
         )?;
 

@@ -1,8 +1,8 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at http://mozilla.org/MPL/2.0/.
-//
-// Copyright (c) DUSK NETWORK. All rights reserved.
+// // This Source Code Form is subject to the terms of the Mozilla Public
+// // License, v. 2.0. If a copy of the MPL was not distributed with this
+// // file, You can obtain one at http://mozilla.org/MPL/2.0/.
+// //
+// // Copyright (c) DUSK NETWORK. All rights reserved.
 
 use super::StandardComposer;
 use crate::{
@@ -35,12 +35,12 @@ pub(crate) fn dummy_gadget<F, P>(
 /// Takes a generic gadget function with no auxillary input and tests whether it
 /// passes an end-to-end test.
 #[allow(dead_code)]
-pub(crate) fn gadget_tester<F, P, PC>(
+pub(crate) fn gadget_tester<F, P, PC, G>(
     gadget: fn(&mut StandardComposer<F, P>),
     n: usize,
 ) -> Result<crate::proof_system::Proof<F, PC>, Error>
 where
-    F: PrimeField,
+    F: PrimeField + ark_ec::AffineCurve,
     P: TEModelParameters<BaseField = F>,
     PC: HomomorphicCommitment<F>,
 {
@@ -71,8 +71,9 @@ where
         // So pre-fetch these before calling Prove
         let public_inputs = prover.cs.get_pi().clone();
 
+
         // Compute Proof
-        (prover.prove(&ck)?, public_inputs)
+        (prover.prove::<F>(&ck, None)?, public_inputs)
     };
     // Verifiers view
     //
