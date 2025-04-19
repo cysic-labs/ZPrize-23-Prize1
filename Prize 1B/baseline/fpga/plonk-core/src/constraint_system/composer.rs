@@ -77,11 +77,11 @@ where
     pub(crate) q_c: Vec<F>,
     // Here we introduce 3 new selectors that will be useful for
     // poseidon hashes.
-    /// Selector for for w_l^5
+    /// Selector for w_l^5
     pub(crate) q_hl: Vec<F>,
-    /// Selector for for w_r^5
+    /// Selector for w_r^5
     pub(crate) q_hr: Vec<F>,
-    /// Selector for for w_4^5
+    /// Selector for w_4^5
     pub(crate) q_h4: Vec<F>,
     /// Arithmetic wire selector
     pub(crate) q_arith: Vec<F>,
