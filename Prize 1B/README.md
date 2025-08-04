@@ -19,8 +19,8 @@ The circuit C is defined as: Compute a Merkle tree of height 15, where the inter
 
 The [test harness repo](https://github.com/cysic-labs/ZPrize-23-Prize1/tree/main/Prize%201B) consists of the following:
   - The CPU implementation of both the prover and verifier. 
-  - A baseline FPGA implementation provided by Cysic around mid Feburary.
-  - A baseline GPU implementation provided by Trapdoor Tech around mid Feburary.
+  - A baseline FPGA implementation provided by Cysic around mid February.
+  - A baseline GPU implementation provided by Trapdoor Tech around mid February.
 
 ## Timeline
   - April 15 – Competition begins.
