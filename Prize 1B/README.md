@@ -19,8 +19,8 @@ The circuit C is defined as: Compute a Merkle tree of height 15, where the inter
 
 The [test harness repo](https://github.com/cysic-labs/ZPrize-23-Prize1/tree/main/Prize%201B) consists of the following:
   - The CPU implementation of both the prover and verifier. 
-  - A baseline FPGA implementation provided by Cysic around mid Feburary.
-  - A baseline GPU implementation provided by Trapdoor Tech around mid Feburary.
+  - A baseline FPGA implementation provided by Cysic around mid February.
+  - A baseline GPU implementation provided by Trapdoor Tech around mid February.
 
 ## Timeline
   - April 15 – Competition begins.
@@ -45,7 +45,7 @@ Competitors will be given access to one of the following:
   - A dedicated instance of baseline image consisting of 8 cores of AMD EPYC 7742, an U250 FPGA card and 128 GB memory.
 
 ## Prize Allocation
-The total prize award is $400k + 250k Aleo credits. The GPUs and FPGAs will be scored in a unified way, using performance related to the energy consumption. More specicially, the score is calulcated based as the joules needed to generated 10 such proofs. The prize will be divided into FPGA and GPU track, where the prize for each track is proportional to the number of eligible submissions. The first place takes 65% of the award, while the second and third place take 25% and 10% respectively. For instance, in a competition with X GPU teams and Y FPGA teams, if a team wins the first prize in GPU track, then the prize the team gets is X/(X + Y) * 500k * 65%.
+The total prize award is $400k + 250k Aleo credits. The GPUs and FPGAs will be scored in a unified way, using performance related to the energy consumption. More specifically, the score is calculated based as the joules needed to generate 10 such proofs. The prize will be divided into FPGA and GPU track, where the prize for each track is proportional to the number of eligible submissions. The first place takes 65% of the award, while the second and third place take 25% and 10% respectively. For instance, in a competition with X GPU teams and Y FPGA teams, if a team wins the first prize in GPU track, then the prize the team gets is X/(X + Y) * 500k * 65%.
 
 Prizes will be awarded in good faith and at the sole discretion of the prize committee members.
 
